@@ -1,0 +1,13 @@
+{
+  "name": "bibicoin-testnet",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Educational public Bibicoin testnet MVP with browser mining and signed transfers",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
