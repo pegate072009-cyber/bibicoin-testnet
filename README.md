@@ -1,65 +1,32 @@
-# Bibicoin Testnet MVP
+# Bibicoin Testnet — Security Update 1.1
 
-This is an educational **public testnet starter**, not a real-money cryptocurrency and not yet a decentralized peer-to-peer blockchain.
+Educational cryptocurrency test network. BBC has no monetary value. Do not use real funds, real payment credentials, or keys reused elsewhere.
 
-## What is included
-- Node.js HTTP server with a persistent JSON ledger (`bibicoin-data.json`)
-- Browser-created wallets (Ed25519 key pair; server returns the private key once and does not store it)
-- Signed BBC transfers
-- SHA-256 proof-of-work browser mining
-- Server-side checks for transaction signatures, balances, block hashes, difficulty, reward schedule, and previous-block link
-- Block and transaction explorer
+## Run
 
-## Token rules in this prototype
-- Symbol: BBC
-- Maximum supply cap: 30,000,000 BBC
-- Initial reward: 50 BBC
-- Halving interval: 210,000 blocks
-- Smallest unit: 0.00000001 BBC
-- Difficulty: 3 leading hexadecimal zeroes (fixed for this prototype)
+- Node.js 18 or newer
+- `npm start`
+- Open `http://localhost:3000`
+- Run the basic cryptographic smoke tests with `npm test`
 
-**Supply note:** With a 50 BBC starting reward and a 210,000-block halving interval, the geometric reward schedule issues about 21 million BBC before integer rounding, so 30 million is a cap, not a promise that all 30 million will be mined.
+## Deploying
 
-## Run locally
-Requires Node.js 18 or newer. No npm packages are required.
+Deploy as a Node.js Web Service. Build command: `npm install` (there are no third-party runtime dependencies). Start command: `npm start`. The app serves its frontend from `public/index.html`.
 
-```bash
-npm start
-```
+## Security improvements in 1.1
 
-Open `http://localhost:3000`.
-
-## Deploy online
-Deploy this folder to a Node.js hosting provider that supports:
-- Node.js 18+
-- a persistent writable disk/volume for `bibicoin-data.json`
-- HTTPS
-- long-running Node.js web services
-
-Set the start command to `npm start`. The provider should assign the `PORT` environment variable automatically.
-
-Do not deploy on a static-only hosting service. If the host has ephemeral storage, the chain file can be lost on restart; attach a persistent disk or replace the JSON store with a managed database before public use.
-
-## Test across devices
-1. Deploy the app and open its HTTPS URL on Phone A.
-2. Create a wallet and securely back up its private key.
-3. Open the same URL on Phone B and create another wallet.
-4. On Phone A, mine blocks to earn BBC.
-5. Copy Phone B's address and send BBC from Phone A.
-6. Mine another block. Phone B should see the confirmed incoming transfer after refresh.
+- Transaction IDs are recomputed by the server from the signed transaction fields and signature. Altered transaction data or a forged transaction ID is rejected.
+- Ed25519 key type, signature format, address, amount, timestamp, and nonce are validated.
+- The browser renders explorer and transaction data using DOM text nodes rather than interpolating untrusted values into HTML.
+- Basic per-IP rate limits protect wallet creation, transaction submission, and mining endpoints.
+- Pending transaction pool has a size cap and JSON request bodies are limited to 256 KB.
+- Existing malformed ledger files now cause a startup error instead of silently creating a new genesis ledger and overwriting the prior state.
+- Basic browser security headers are sent with responses.
 
 ## Important limitations
-- One hosted server currently owns the canonical ledger. Devices are browser wallets/miners, **not independent full nodes**.
-- There is no peer discovery, P2P gossip, independent chain selection, reorganization handling, or distributed consensus yet.
-- The server is a central point of failure and can censor or lose data.
-- Private keys are stored in browser localStorage for convenience in this demo. Anyone with access to that browser profile may be able to extract them. Do not use a valuable or reused key.
-- Fixed difficulty is intentionally low for learning and is not secure.
-- The server's JSON ledger is a prototype storage layer, not production-grade database software.
-- No real money, exchange listing, or financial value is involved.
 
-## Next engineering stages
-1. Replace JSON file storage with SQLite/PostgreSQL and atomic transactions.
-2. Add rate limits, request size limits, audit logging, backups, and robust tests.
-3. Build independent node software and authenticated peer-to-peer synchronization.
-4. Add chain-work selection and reorganization support.
-5. Add testnet reset/genesis configuration and a proper command-line node.
+This remains a single-server educational testnet, not a decentralized blockchain and not suitable for real money. Private keys are still stored in this demo browser's localStorage; anyone with access to the browser profile or a future same-origin script compromise may be able to access them. Use a newly created test wallet only, and never reuse a real-world password or private key.
+
+The ledger is stored in a local JSON file. Hosting providers may use ephemeral filesystems, so the chain can be lost after a restart or redeploy unless persistent storage is configured. Configure a persistent disk or a proper database before relying on continuity. Back up test data separately.
+
+Rate limiting is in-memory and per process; it is not a substitute for an API gateway or distributed abuse protection. The project has no independent peer nodes, consensus fork choice, validator set, formal audit, or production-grade key management.

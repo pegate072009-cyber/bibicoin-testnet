@@ -30,19 +30,30 @@ function rewardAt(height) {
   if (halvings >= 53) return 0;
   return INITIAL_REWARD / (2 ** halvings);
 }
+function createGenesisState() {
+  const genesis = {
+    height: 0, timestamp: Date.now(), previousHash: "0".repeat(64),
+    nonce: 0, miner: "GENESIS", reward: 0, transactions: []
+  };
+  genesis.hash = sha256(stable(genesis));
+  return { chain: [genesis], pending: [], nextNonce: {} };
+}
 function readState() {
   try {
-    const s = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-    if (!Array.isArray(s.chain) || !Array.isArray(s.pending)) throw new Error("bad state");
+    const raw = fs.readFileSync(DATA_FILE, "utf8");
+    const s = JSON.parse(raw);
+    if (!s || !Array.isArray(s.chain) || s.chain.length < 1 || !Array.isArray(s.pending)) {
+      throw new Error("Invalid ledger structure");
+    }
     return s;
-  } catch {
-    const genesis = {
-      height: 0, timestamp: Date.now(), previousHash: "0".repeat(64),
-      nonce: 0, miner: "GENESIS", reward: 0, transactions: []
-    };
-    genesis.hash = sha256(stable(genesis));
-    const s = { chain: [genesis], pending: [], nextNonce: {} };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(s, null, 2));
+  } catch (err) {
+    if (err.code !== "ENOENT") {
+      console.error("Ledger file is present but invalid. Refusing to reset it:", err.message);
+      throw new Error("Bibicoin ledger is invalid; refusing to overwrite existing data.");
+    }
+    const s = createGenesisState();
+    fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
+    fs.writeFileSync(DATA_FILE, JSON.stringify(s, null, 2), { flag: "wx" });
     return s;
   }
 }
@@ -85,10 +96,11 @@ function json(res, status, data) {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
   });
   res.end(body);
 }
@@ -97,7 +109,7 @@ function readBody(req) {
     let raw = "";
     req.on("data", chunk => {
       raw += chunk;
-      if (raw.length > 1_000_000) {
+      if (raw.length > 256_000) {
         reject(new Error("Request too large"));
         req.destroy();
       }
@@ -111,13 +123,24 @@ function readBody(req) {
 function validAddress(a) { return typeof a === "string" && /^BBC[A-F0-9]{40}$/.test(a); }
 function validTx(tx) {
   try {
-    if (!tx || !validAddress(tx.from) || !validAddress(tx.to) || tx.from === tx.to) return false;
-    if (!/^[1-9][0-9]*$/.test(String(tx.amount)) || BigInt(tx.amount) <= 0n) return false;
-    if (!Number.isSafeInteger(tx.timestamp) || typeof tx.nonce !== "number") return false;
-    if (typeof tx.publicKey !== "string" || typeof tx.signature !== "string") return false;
+    if (!tx || typeof tx !== "object" || Array.isArray(tx)) return false;
+    const allowedKeys = ["amount", "from", "id", "nonce", "publicKey", "signature", "timestamp", "to"];
+    if (Object.keys(tx).sort().join("|") !== allowedKeys.sort().join("|")) return false;
+    if (!validAddress(tx.from) || !validAddress(tx.to) || tx.from === tx.to) return false;
+    if (typeof tx.amount !== "string" || !/^[1-9][0-9]*$/.test(tx.amount) || BigInt(tx.amount) <= 0n) return false;
+    if (!Number.isSafeInteger(tx.timestamp) || tx.timestamp < 0) return false;
+    if (!Number.isSafeInteger(tx.nonce) || tx.nonce < 0) return false;
+    if (typeof tx.publicKey !== "string" || tx.publicKey.length > 2048) return false;
+    if (typeof tx.signature !== "string" || !/^[A-Za-z0-9+/]{86}==$/.test(tx.signature)) return false;
+    if (typeof tx.id !== "string" || !/^[a-f0-9]{64}$/.test(tx.id)) return false;
     if (addressFromPublicKey(tx.publicKey) !== tx.from) return false;
     const key = crypto.createPublicKey(tx.publicKey);
-    return crypto.verify(null, Buffer.from(txPayload(tx)), key, Buffer.from(tx.signature, "base64"));
+    if (key.asymmetricKeyType !== "ed25519") return false;
+    const signatureValid = crypto.verify(null, Buffer.from(txPayload(tx)), key, Buffer.from(tx.signature, "base64"));
+    if (!signatureValid) return false;
+    const unsignedIdPayload = { ...tx };
+    delete unsignedIdPayload.id;
+    return sha256(stable(unsignedIdPayload)) === tx.id;
   } catch { return false; }
 }
 function blockHash(block) {
@@ -147,8 +170,30 @@ function chainSummary() {
     mode: "single-hosted-node testnet"
   };
 }
+const rateBuckets = new Map();
+function rateLimit(req, res, bucketName, limit, windowMs) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  const ip = forwarded || req.socket.remoteAddress || "unknown";
+  const key = bucketName + ":" + ip;
+  const now = Date.now();
+  let bucket = rateBuckets.get(key);
+  if (!bucket || now - bucket.start >= windowMs) bucket = { start: now, count: 0 };
+  bucket.count++;
+  rateBuckets.set(key, bucket);
+  if (rateBuckets.size > 10000) {
+    for (const [k, v] of rateBuckets) if (now - v.start > windowMs * 2) rateBuckets.delete(k);
+  }
+  if (bucket.count > limit) {
+    json(res, 429, { error: "Too many requests. Please wait and try again." });
+    return false;
+  }
+  return true;
+}
 async function handle(req, res) {
-  if (req.method === "OPTIONS") return json(res, 204, {});
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, { "Cache-Control": "no-store", "Allow": "GET, POST, OPTIONS" });
+    return res.end();
+  }
   const u = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   if (req.method === "GET" && u.pathname === "/api/status") return json(res, 200, chainSummary());
   if (req.method === "GET" && u.pathname === "/api/blocks") {
@@ -175,6 +220,7 @@ async function handle(req, res) {
     return json(res, 200, { address, balance: balanceOf(address), transactions: transactions.reverse() });
   }
   if (req.method === "POST" && u.pathname === "/api/wallet/new") {
+    if (!rateLimit(req, res, "wallet", 8, 60 * 60 * 1000)) return;
     const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519", {
       publicKeyEncoding: { type: "spki", format: "pem" },
       privateKeyEncoding: { type: "pkcs8", format: "pem" }
@@ -184,7 +230,9 @@ async function handle(req, res) {
     return json(res, 201, { address, publicKey, privateKey, warning: "Save this private key securely. It is shown once. This is an educational testnet, not real money." });
   }
   if (req.method === "POST" && u.pathname === "/api/transaction") {
+    if (!rateLimit(req, res, "transaction", 30, 60 * 1000)) return;
     const tx = await readBody(req);
+    if (state.pending.length >= 5000) return json(res, 429, { error: "Pending transaction pool is full. Try again later." });
     if (!validTx(tx)) return json(res, 400, { error: "Invalid signature or transaction fields" });
     if (allTxIds().has(tx.id)) return json(res, 409, { error: "Duplicate transaction" });
     if (BigInt(balanceOf(tx.from)) < BigInt(tx.amount)) return json(res, 400, { error: "Insufficient available balance" });
@@ -193,6 +241,7 @@ async function handle(req, res) {
     return json(res, 201, { accepted: true, transactionId: tx.id, status: "pending" });
   }
   if (req.method === "POST" && u.pathname === "/api/mine/template") {
+    if (!rateLimit(req, res, "mine-template", 30, 60 * 1000)) return;
     const { miner } = await readBody(req);
     if (!validAddress(miner)) return json(res, 400, { error: "Invalid miner address" });
     const height = state.chain.length;
@@ -219,11 +268,12 @@ async function handle(req, res) {
     return json(res, 200, { candidate, difficulty: DIFFICULTY });
   }
   if (req.method === "POST" && u.pathname === "/api/mine/submit") {
+    if (!rateLimit(req, res, "mine-submit", 20, 60 * 1000)) return;
     const { block } = await readBody(req);
     if (!block || block.height !== state.chain.length) return json(res, 409, { error: "Stale block: chain tip changed. Get a new template." });
     const previous = state.chain[state.chain.length - 1];
     if (block.previousHash !== previous.hash) return json(res, 400, { error: "Previous hash mismatch" });
-    if (!validAddress(block.miner) || !Number.isSafeInteger(block.nonce) || block.nonce < 0) return json(res, 400, { error: "Invalid miner or nonce" });
+    if (!validAddress(block.miner) || !Number.isSafeInteger(block.nonce) || block.nonce < 0 || !Number.isSafeInteger(block.timestamp) || block.timestamp < 0) return json(res, 400, { error: "Invalid miner, timestamp or nonce" });
     if (!Array.isArray(block.transactions) || block.transactions.length > 500) return json(res, 400, { error: "Invalid transaction list" });
     const expectedReward = rewardAt(block.height);
     const capLeft = BigInt(MAX_SUPPLY) * UNIT - totalIssued();
@@ -231,7 +281,6 @@ async function handle(req, res) {
     if (BigInt(Math.round(block.reward * 1e8)) !== expectedUnits) return json(res, 400, { error: "Invalid block reward" });
     if (block.hash !== blockHash(block) || !block.hash.startsWith("0".repeat(DIFFICULTY))) return json(res, 400, { error: "Proof of Work or block hash invalid" });
     const pendingIds = new Set(state.pending.map(t => t.id));
-    const expectedTxs = state.pending.filter(t => pendingIds.has(t.id) && validTx(t));
     const submittedIds = block.transactions.map(t => t.id);
     if (new Set(submittedIds).size !== submittedIds.length) return json(res, 400, { error: "Duplicate transactions in block" });
     const currentBalances = chainBalances();
