@@ -1,8 +1,8 @@
 {
   "name": "darkcoin-testnet-demo",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "private": true,
-  "description": "Darkcoin educational testnet wallet with paper exchange demo",
+  "description": "Darkcoin educational testnet wallet with explorer and paper exchange demo",
   "main": "server.js",
   "scripts": {"start": "node server.js", "test": "node smoke-test.js"},
   "engines": {"node": ">=18"}

@@ -1,6 +1,12 @@
-# Darkcoin (DKC) V2.4 — educational testnet + paper exchange
+# Darkcoin (DKC) V2.5 — educational testnet explorer + paper exchange
 
 This is a single-hosted-node educational blockchain demo with a browser-local paper exchange. DKC has no real monetary value. It is not a production cryptocurrency and is not Bitcoin-compatible. The paper exchange uses simulated prices and demo credits only.
+
+## V2.5 changes
+- Expanded the blockchain explorer with chain height, issued supply, pending transaction metrics, block timestamps, and search by block height or transaction ID.
+- Added clearer network architecture reporting: one hosted server, no peer-to-peer node discovery, and no independent multi-node consensus. Browser sessions are not counted as network nodes.
+- Explorer searches use the existing block and recent-transaction APIs; transaction search is limited to the server's available recent transaction index.
+- No real trading, external price feed, deposits, withdrawals, or decentralized peer network were added.
 
 ## V2.4 changes
 - Added a browser-local DKC/USD paper exchange with a simulated price chart, simulated high/low/volume, demo USD credits, demo DKC holdings, market orders, limit orders, generated bid/ask book, open-order cancellation, trade history, and portfolio reset.
