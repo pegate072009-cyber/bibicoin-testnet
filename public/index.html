@@ -76,7 +76,12 @@ footer{padding:20px;color:var(--muted);font-size:12px;text-align:center}
 <div class="status" id="mineStatus">Create a wallet before mining. Mining uses your device's CPU and may make it warm or drain battery.</div>
 </section>
 <section id="explorer" class="panel hidden">
-<h2>Latest blocks</h2><button id="refresh">Refresh explorer</button><div id="blocks" class="muted small" style="margin-top:12px">Loading…</div>
+<h2>Blockchain Explorer <span class="pill">TESTNET DATA</span></h2>
+<p class="muted small">Browse blocks and transactions recorded by this hosted testnet server. Explorer data is not independently verified by a peer network.</p>
+<div class="grid"><div class="card"><div class="label">CHAIN HEIGHT</div><div class="metric" id="explorerHeight">—</div></div><div class="card"><div class="label">ISSUED SUPPLY</div><div class="metric" id="explorerSupply">—</div></div><div class="card"><div class="label">PENDING TRANSACTIONS</div><div class="metric" id="explorerPending">—</div></div></div>
+<div class="row"><input id="explorerSearch" placeholder="Search block height or transaction ID" aria-label="Search block height or transaction ID"><button id="explorerSearchBtn" class="primary">Search</button><button id="refresh">Refresh</button></div>
+<div id="searchResult" class="status hidden" aria-live="polite"></div>
+<h2 style="margin-top:22px">Latest blocks</h2><div id="blocks" class="muted small" style="margin-top:12px">Loading…</div>
 <h2 style="margin-top:22px">Recent transactions</h2><div id="transactions" class="muted small">Loading…</div>
 </section>
 <section id="trading" class="panel hidden">
@@ -102,7 +107,8 @@ footer{padding:20px;color:var(--muted);font-size:12px;text-align:center}
 </section>
 <section id="network" class="panel hidden">
 <h2>Network parameters</h2><div id="rules" class="muted">Loading…</div>
-<p class="status warn">This first release is a public testnet MVP backed by one hosted node. It supports online wallets, signed transfers and browser mining, but it is not yet a decentralized peer-to-peer network. The host is a central point of failure and must not be used for real money.</p>
+<div class="grid"><div class="card"><div class="label">CURRENT DEPLOYMENT</div><div class="metric">1 server</div><p class="small muted">Single hosted ledger</p></div><div class="card"><div class="label">PEER-TO-PEER NODES</div><div class="metric">Not implemented</div><p class="small muted">No independent peer discovery</p></div><div class="card"><div class="label">CONSENSUS</div><div class="metric">Single-node PoW</div><p class="small muted">No multi-node fork choice</p></div></div>
+<p class="status warn">Network monitor reports the actual architecture: this release is a single-server educational testnet, not a decentralized peer-to-peer network. Connected browser sessions are not independent nodes. Do not use real funds.</p>
 </section>
 <footer>Darkcoin is an educational test network. DKC has no monetary value. Trading is simulated paper trading only. Never send money to use this demo.</footer>
 </main>
