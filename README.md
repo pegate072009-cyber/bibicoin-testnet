@@ -1,32 +1,41 @@
-# Bibicoin Testnet — Security Update 1.1
+# Darkcoin (DKC) V2.4 — educational testnet + paper exchange
 
-Educational cryptocurrency test network. BBC has no monetary value. Do not use real funds, real payment credentials, or keys reused elsewhere.
+This is a single-hosted-node educational blockchain demo with a browser-local paper exchange. DKC has no real monetary value. It is not a production cryptocurrency and is not Bitcoin-compatible. The paper exchange uses simulated prices and demo credits only.
 
-## Run
+## V2.4 changes
+- Added a browser-local DKC/USD paper exchange with a simulated price chart, simulated high/low/volume, demo USD credits, demo DKC holdings, market orders, limit orders, generated bid/ask book, open-order cancellation, trade history, and portfolio reset.
+- Paper exchange data is stored in this browser localStorage and is not connected to the blockchain ledger or any external market. The displayed price is simulated and is not a real DKC/USD quote.
+- No deposits, withdrawals, external exchange connectivity, or real-money trading are implemented.
 
-- Node.js 18 or newer
-- `npm start`
-- Open `http://localhost:3000`
-- Run the basic cryptographic smoke tests with `npm test`
+## V2.3 changes
+- Standardized the demo coin symbol to DKC and maximum supply cap to 21,000,000 DKC.
+- Added startup validation for genesis, block links, block hashes, proof of work, subsidy schedule, transaction signatures/IDs, duplicate transactions, transaction nonces, balances, and pending transactions. Invalid ledgers fail closed rather than being silently reset.
+- Added sequential per-wallet transaction nonce enforcement to reduce replay/duplicate-order problems.
+- Made ledger writes atomic with restrictive file permissions and fsync before rename.
+- New browser-created wallets encrypt the private key at rest using PBKDF2-SHA256 (310,000 iterations) and AES-256-GCM. Passwords are never sent to the server.
+- Replaced the former illustrative balance chart with a chart derived from the available block history.
+- Replaced unit-only tests with server integration tests covering wallet creation, mining, transfers, nonce rejection, balances, and tampered-ledger rejection.
 
-## Deploying
+## Run locally
+Requires Node.js 18 or later.
 
-Deploy as a Node.js Web Service. Build command: `npm install` (there are no third-party runtime dependencies). Start command: `npm start`. The app serves its frontend from `public/index.html`.
+```bash
+npm test
+npm start
+```
 
-## Security improvements in 1.1
+Open `http://localhost:3000`. Use HTTPS when hosted publicly.
 
-- Transaction IDs are recomputed by the server from the signed transaction fields and signature. Altered transaction data or a forged transaction ID is rejected.
-- Ed25519 key type, signature format, address, amount, timestamp, and nonce are validated.
-- The browser renders explorer and transaction data using DOM text nodes rather than interpolating untrusted values into HTML.
-- Basic per-IP rate limits protect wallet creation, transaction submission, and mining endpoints.
-- Pending transaction pool has a size cap and JSON request bodies are limited to 256 KB.
-- Existing malformed ledger files now cause a startup error instead of silently creating a new genesis ledger and overwriting the prior state.
-- Basic browser security headers are sent with responses.
+## Persistent hosting storage
+The ledger defaults to `./bibicoin-data.json`. Set `BIBICOIN_DATA` to a path on a persistent disk mounted by your host, for example `/var/data/darkcoin-data.json`. Attach/configure the persistent disk in your hosting provider first. Back up this file regularly. Do not assume an ephemeral container filesystem is persistent.
 
-## Important limitations
+## Important migration note
+V2.3 uses DKC addresses and validates a 21-million cap. Existing V1/V2 ledger files created with BBC addresses or a 30-million cap will fail validation. Back up the old file before starting V2.3 and use a new empty ledger path for this educational testnet. This does not migrate old balances.
 
-This remains a single-server educational testnet, not a decentralized blockchain and not suitable for real money. Private keys are still stored in this demo browser's localStorage; anyone with access to the browser profile or a future same-origin script compromise may be able to access them. Use a newly created test wallet only, and never reuse a real-world password or private key.
+## Wallet security limitations
+The wallet encryption is browser-side encryption at rest, not a full account/password authentication system. Anyone who knows the wallet password and has the encrypted browser backup can unlock it. If the password is lost, the encrypted key cannot be recovered; keep a secure offline backup of the private key. Older wallets saved by earlier versions may still contain plaintext private keys in browser localStorage. Remove those old records only after securely backing up the keys, or create new wallets.
 
-The ledger is stored in a local JSON file. Hosting providers may use ephemeral filesystems, so the chain can be lost after a restart or redeploy unless persistent storage is configured. Configure a persistent disk or a proper database before relying on continuity. Back up test data separately.
+The server returns a newly generated private key once over the API; deploy behind HTTPS only. Do not use real funds, personal passwords, or valuable keys. This code has not undergone an independent security audit.
 
-Rate limiting is in-memory and per process; it is not a substitute for an API gateway or distributed abuse protection. The project has no independent peer nodes, consensus fork choice, validator set, formal audit, or production-grade key management.
+## Consensus and decentralization limitations
+This remains one server with fixed difficulty and a simple proof-of-work rule. It has no P2P network, independent peer consensus, cumulative chainwork fork choice, production retargeting, UTXO set, script system, coinbase maturity, or robust production mempool. Multiple app sessions connected to this server are not independent blockchain nodes.

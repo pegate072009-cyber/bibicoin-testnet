@@ -8,7 +8,7 @@ const DATA_FILE = process.env.BIBICOIN_DATA || path.join(__dirname, "bibicoin-da
 const DIFFICULTY = 3;
 const INITIAL_REWARD = 50;
 const HALVING_INTERVAL = 210000;
-const MAX_SUPPLY = 30_000_000;
+const MAX_SUPPLY = 21_000_000;
 const UNIT = 100_000_000n;
 const PUBLIC_DIR = path.join(__dirname, "public");
 
@@ -38,18 +38,65 @@ function createGenesisState() {
   genesis.hash = sha256(stable(genesis));
   return { chain: [genesis], pending: [], nextNonce: {} };
 }
+function validateChain(candidate) {
+  if (!candidate || !Array.isArray(candidate.chain) || candidate.chain.length < 1 || !Array.isArray(candidate.pending)) throw new Error("Invalid ledger structure");
+  const chain = candidate.chain;
+  const seen = new Set();
+  const balances = Object.create(null);
+  let issued = 0n;
+  for (let i = 0; i < chain.length; i++) {
+    const b = chain[i];
+    if (!b || b.height !== i || !Number.isSafeInteger(b.timestamp) || !Number.isSafeInteger(b.nonce) || !Array.isArray(b.transactions)) throw new Error(`Invalid block structure at height ${i}`);
+    if (i === 0) {
+      if (b.previousHash !== "0".repeat(64) || b.miner !== "GENESIS" || b.reward !== 0 || b.transactions.length !== 0 || b.hash !== blockHash(b)) throw new Error("Invalid genesis block");
+      continue;
+    }
+    const prev = chain[i - 1];
+    if (b.previousHash !== prev.hash || b.hash !== blockHash(b) || !b.hash.startsWith("0".repeat(DIFFICULTY))) throw new Error(`Invalid block link, hash, or proof of work at height ${i}`);
+    if (!validAddress(b.miner) || !Number.isFinite(b.reward) || b.reward < 0) throw new Error(`Invalid miner or reward at height ${i}`);
+    const capLeft = BigInt(MAX_SUPPLY) * UNIT - issued;
+    const expected = BigInt(Math.round(rewardAt(i) * 1e8)) > capLeft ? capLeft : BigInt(Math.round(rewardAt(i) * 1e8));
+    const rewardUnits = BigInt(Math.round(b.reward * 1e8));
+    if (rewardUnits !== expected) throw new Error(`Invalid subsidy at height ${i}`);
+    issued += rewardUnits;
+    const spent = Object.create(null);
+    for (const tx of b.transactions) {
+      if (!validTx(tx) || seen.has(tx.id)) throw new Error(`Invalid or duplicate transaction at height ${i}`);
+      const expectedNonce = (balances[tx.from + ":nonce"] || 0);
+      if (tx.nonce !== expectedNonce) throw new Error(`Invalid transaction nonce at height ${i}`);
+      const amount = BigInt(tx.amount);
+      if ((balances[tx.from] || 0n) - (spent[tx.from] || 0n) < amount) throw new Error(`Overspending transaction at height ${i}`);
+      spent[tx.from] = (spent[tx.from] || 0n) + amount;
+      balances[tx.from] = (balances[tx.from] || 0n) - amount;
+      balances[tx.to] = (balances[tx.to] || 0n) + amount;
+      balances[tx.from + ":nonce"] = expectedNonce + 1;
+      seen.add(tx.id);
+    }
+    balances[b.miner] = (balances[b.miner] || 0n) + rewardUnits;
+  }
+  const pendingSpent = Object.create(null);
+  const pendingNonce = Object.create(null);
+  for (const tx of candidate.pending) {
+    if (!validTx(tx) || seen.has(tx.id)) throw new Error("Invalid or duplicate pending transaction");
+    if (pendingNonce[tx.from] === undefined) pendingNonce[tx.from] = chain.reduce((n,b) => n + b.transactions.filter(t => t.from === tx.from).length, 0);
+    if (tx.nonce !== pendingNonce[tx.from]++) throw new Error("Invalid pending transaction nonce sequence");
+    const amount = BigInt(tx.amount);
+    if ((balances[tx.from] || 0n) - (pendingSpent[tx.from] || 0n) < amount) throw new Error("Pending transactions overspend wallet balance");
+    pendingSpent[tx.from] = (pendingSpent[tx.from] || 0n) + amount;
+    seen.add(tx.id);
+  }
+  if (issued > BigInt(MAX_SUPPLY) * UNIT) throw new Error("Maximum supply exceeded");
+}
 function readState() {
   try {
     const raw = fs.readFileSync(DATA_FILE, "utf8");
     const s = JSON.parse(raw);
-    if (!s || !Array.isArray(s.chain) || s.chain.length < 1 || !Array.isArray(s.pending)) {
-      throw new Error("Invalid ledger structure");
-    }
+    validateChain(s);
     return s;
   } catch (err) {
     if (err.code !== "ENOENT") {
       console.error("Ledger file is present but invalid. Refusing to reset it:", err.message);
-      throw new Error("Bibicoin ledger is invalid; refusing to overwrite existing data.");
+      throw new Error("Darkcoin ledger is invalid; refusing to overwrite existing data.");
     }
     const s = createGenesisState();
     fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
@@ -59,12 +106,15 @@ function readState() {
 }
 let state = readState();
 function save() {
+  const dir = path.dirname(DATA_FILE);
+  fs.mkdirSync(dir, { recursive: true });
   const tmp = DATA_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  const fd = fs.openSync(tmp, "w", 0o600);
+  try { fs.writeFileSync(fd, JSON.stringify(state, null, 2)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
   fs.renameSync(tmp, DATA_FILE);
 }
 function addressFromPublicKey(publicKeyPem) {
-  return "BBC" + sha256(publicKeyPem).slice(0, 40).toUpperCase();
+  return "DKC" + sha256(publicKeyPem).slice(0, 40).toUpperCase();
 }
 function chainBalances() {
   const b = Object.create(null);
@@ -120,7 +170,7 @@ function readBody(req) {
     req.on("error", reject);
   });
 }
-function validAddress(a) { return typeof a === "string" && /^BBC[A-F0-9]{40}$/.test(a); }
+function validAddress(a) { return typeof a === "string" && /^DKC[A-F0-9]{40}$/.test(a); }
 function validTx(tx) {
   try {
     if (!tx || typeof tx !== "object" || Array.isArray(tx)) return false;
@@ -156,8 +206,8 @@ function allTxIds() {
 }
 function chainSummary() {
   return {
-    name: "Bibicoin Testnet",
-    symbol: "BBC",
+    name: "Darkcoin Testnet",
+    symbol: "DKC",
     height: state.chain.length - 1,
     latestHash: state.chain[state.chain.length - 1].hash,
     difficulty: DIFFICULTY,
@@ -217,7 +267,10 @@ async function handle(req, res) {
     for (const b of state.chain) for (const t of b.transactions || []) {
       if (t.from === address || t.to === address) transactions.push({ ...t, blockHeight: b.height });
     }
-    return json(res, 200, { address, balance: balanceOf(address), transactions: transactions.reverse() });
+    const confirmedNonce = state.chain.reduce((n, b) => n + b.transactions.filter(t => t.from === address).length, 0);
+    const pendingNonces = state.pending.filter(t => t.from === address).map(t => t.nonce);
+    const nextNonce = pendingNonces.length ? Math.max(confirmedNonce, ...pendingNonces) + 1 : confirmedNonce;
+    return json(res, 200, { address, balance: balanceOf(address), nextNonce, transactions: transactions.reverse() });
   }
   if (req.method === "POST" && u.pathname === "/api/wallet/new") {
     if (!rateLimit(req, res, "wallet", 8, 60 * 60 * 1000)) return;
@@ -235,6 +288,10 @@ async function handle(req, res) {
     if (state.pending.length >= 5000) return json(res, 429, { error: "Pending transaction pool is full. Try again later." });
     if (!validTx(tx)) return json(res, 400, { error: "Invalid signature or transaction fields" });
     if (allTxIds().has(tx.id)) return json(res, 409, { error: "Duplicate transaction" });
+    const confirmedNonce = state.chain.reduce((n, b) => n + b.transactions.filter(t => t.from === tx.from).length, 0);
+    const pendingFrom = state.pending.filter(t => t.from === tx.from).sort((a,b) => a.nonce-b.nonce);
+    const expectedNonce = pendingFrom.length ? pendingFrom[pendingFrom.length - 1].nonce + 1 : confirmedNonce;
+    if (tx.nonce !== expectedNonce) return json(res, 409, { error: `Invalid nonce. Expected ${expectedNonce}. Refresh wallet and retry.` });
     if (BigInt(balanceOf(tx.from)) < BigInt(tx.amount)) return json(res, 400, { error: "Insufficient available balance" });
     state.pending.push(tx);
     save();
@@ -273,22 +330,24 @@ async function handle(req, res) {
     if (!block || block.height !== state.chain.length) return json(res, 409, { error: "Stale block: chain tip changed. Get a new template." });
     const previous = state.chain[state.chain.length - 1];
     if (block.previousHash !== previous.hash) return json(res, 400, { error: "Previous hash mismatch" });
-    if (!validAddress(block.miner) || !Number.isSafeInteger(block.nonce) || block.nonce < 0 || !Number.isSafeInteger(block.timestamp) || block.timestamp < 0) return json(res, 400, { error: "Invalid miner, timestamp or nonce" });
+    if (!validAddress(block.miner) || !Number.isSafeInteger(block.nonce) || block.nonce < 0 || !Number.isSafeInteger(block.timestamp) || block.timestamp < previous.timestamp || block.timestamp > Date.now() + 120000) return json(res, 400, { error: "Invalid miner, timestamp or nonce" });
     if (!Array.isArray(block.transactions) || block.transactions.length > 500) return json(res, 400, { error: "Invalid transaction list" });
     const expectedReward = rewardAt(block.height);
     const capLeft = BigInt(MAX_SUPPLY) * UNIT - totalIssued();
     const expectedUnits = BigInt(Math.round(expectedReward * 1e8)) > capLeft ? capLeft : BigInt(Math.round(expectedReward * 1e8));
     if (BigInt(Math.round(block.reward * 1e8)) !== expectedUnits) return json(res, 400, { error: "Invalid block reward" });
     if (block.hash !== blockHash(block) || !block.hash.startsWith("0".repeat(DIFFICULTY))) return json(res, 400, { error: "Proof of Work or block hash invalid" });
-    const pendingIds = new Set(state.pending.map(t => t.id));
     const submittedIds = block.transactions.map(t => t.id);
     if (new Set(submittedIds).size !== submittedIds.length) return json(res, 400, { error: "Duplicate transactions in block" });
     const currentBalances = chainBalances();
     const spent = Object.create(null);
+    const expectedNonces = Object.create(null);
     for (const tx of block.transactions) {
       const pendingTx = state.pending.find(p => p.id === tx.id);
       if (!pendingTx || stable(pendingTx) !== stable(tx) || !validTx(tx)) return json(res, 400, { error: "Block contains an unapproved transaction" });
       const amount = BigInt(tx.amount);
+      if (expectedNonces[tx.from] === undefined) expectedNonces[tx.from] = state.chain.reduce((n,b) => n + b.transactions.filter(t => t.from === tx.from).length, 0);
+      if (tx.nonce !== expectedNonces[tx.from]++) return json(res, 400, { error: "Invalid transaction nonce ordering" });
       const available = (currentBalances[tx.from] || 0n) - (spent[tx.from] || 0n);
       if (available < amount) return json(res, 400, { error: "Block contains overspending" });
       spent[tx.from] = (spent[tx.from] || 0n) + amount;
@@ -318,4 +377,4 @@ const server = http.createServer((req, res) => {
     else res.end();
   });
 });
-server.listen(PORT, "0.0.0.0", () => console.log(`Bibicoin Testnet listening on ${PORT}`));
+server.listen(PORT, "0.0.0.0", () => console.log(`Darkcoin Testnet listening on ${PORT}`));

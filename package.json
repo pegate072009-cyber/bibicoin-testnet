@@ -1,14 +1,9 @@
 {
-  "name": "bibicoin-testnet",
-  "version": "1.1.0",
+  "name": "darkcoin-testnet-demo",
+  "version": "2.4.0",
   "private": true,
-  "description": "Educational public Bibicoin testnet MVP with browser mining and signed transfers",
+  "description": "Darkcoin educational testnet wallet with paper exchange demo",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "test": "node smoke-test.js"
-  },
-  "engines": {
-    "node": ">=18"
-  }
+  "scripts": {"start": "node server.js", "test": "node smoke-test.js"},
+  "engines": {"node": ">=18"}
 }
