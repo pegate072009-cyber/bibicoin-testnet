@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Bibicoin Testnet Explorer</title>
+<title>Darkcoin Testnet Wallet</title>
 <style>
 :root{color-scheme:dark;--bg:#0a1020;--panel:#121d31;--line:#263750;--muted:#9aaac0;--text:#edf4ff;--accent:#62b6ff;--good:#50d6a0;--warn:#f4c56a}
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#0a1020,#101a2c);color:var(--text);font:15px system-ui,Arial}
@@ -20,34 +20,50 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 .good{color:var(--good)}.warn{color:var(--warn)}.hidden{display:none}.pill{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:3px 8px;color:var(--muted);font-size:11px}
 footer{padding:20px;color:var(--muted);font-size:12px;text-align:center}
 @media(max-width:600px){h1{font-size:23px}main{padding:12px}.card,.panel{padding:13px}}
+.chart{width:100%;height:190px;overflow:hidden;margin-top:10px}.chart svg{width:100%;height:100%}.chart polyline{fill:none;stroke:#a78bfa;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.chart .gridline{stroke:#2a3449;stroke-width:1}.chart text{fill:#9aaac0;font-size:10px}.profile-head{display:flex;align-items:center;gap:14px;margin:12px 0}.profile-head img{width:62px;height:62px;border-radius:50%;object-fit:cover;background:#253047;border:2px solid #a78bfa}.tab.active,button.primary{background:#5b36a8;border-color:#a78bfa}button{transition:transform .15s,filter .15s}button:active{transform:scale(.97)}.card,.panel{animation:rise .35s ease both}@keyframes rise{from{opacity:.4;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}hr{border:0;border-top:1px solid var(--line);margin:20px 0}select{width:100%;padding:11px;border-radius:9px;border:1px solid #34506f;background:#0b1424;color:var(--text);margin:6px 0 12px}
 </style>
 </head>
 <body>
 <header><main style="padding:0 18px">
-<div class="row" style="align-items:center"><div><h1>₿ Bibicoin <span class="pill">TESTNET</span></h1><div class="muted">Public educational mining & blockchain explorer</div></div><div style="text-align:right"><span class="pill">SHA-256 · Proof of Work</span></div></div>
+<div class="row" style="align-items:center"><div><h1>◈ Darkcoin <span class="pill">TESTNET</span></h1><div class="muted">Dark interface · Educational blockchain wallet</div></div><div style="text-align:right"><span class="pill">SHA-256 · Proof of Work</span></div></div>
 </main></header>
 <main>
 <div class="grid">
 <div class="card"><div class="label">BLOCK HEIGHT</div><div class="metric" id="height">—</div></div>
-<div class="card"><div class="label">BBC ISSUED</div><div class="metric" id="issued">—</div></div>
+<div class="card"><div class="label">DKC ISSUED</div><div class="metric" id="issued">—</div></div>
 <div class="card"><div class="label">BLOCK REWARD</div><div class="metric" id="reward">—</div></div>
 <div class="card"><div class="label">PENDING TX</div><div class="metric" id="pending">—</div></div>
 </div>
 <div class="tabs">
-<button class="tab active" data-tab="wallet">Wallet</button><button class="tab" data-tab="mine">Mine</button><button class="tab" data-tab="explorer">Explorer</button><button class="tab" data-tab="network">Network rules</button>
+<button class="tab active" data-tab="wallet">Wallet</button><button class="tab" data-tab="mine">Mine</button><button class="tab" data-tab="explorer">Explorer</button><button class="tab" data-tab="trading">Trading</button><button class="tab" data-tab="network">Network rules</button><button class="tab" data-tab="analytics">Analytics</button><button class="tab" data-tab="profile">Profile</button>
 </div>
+<section id="analytics" class="panel hidden">
+<h2>Wallet analytics</h2><p class="muted small">Charts use this testnet’s actual block and transaction data where available. Sample balance history is clearly labelled.</p>
+<div class="row"><div><label class="label" for="chartRange">CHART RANGE</label><select id="chartRange"><option value="7">Last 7 blocks</option><option value="20">Last 20 blocks</option><option value="50">Last 50 blocks</option></select></div><div><div class="label">CURRENT WALLET</div><div class="metric" id="chartWallet">Not selected</div></div></div>
+<div class="status"><b>Block rewards</b><div id="blockChart" class="chart"></div></div>
+<div class="status"><b>Transaction activity</b><div id="txChart" class="chart"></div></div>
+<div class="status"><b>Wallet balance trend</b><div id="balanceChart" class="chart"></div><div class="small muted">Illustrative trend only until historical balance snapshots are available.</div></div>
+</section>
+<section id="profile" class="panel hidden">
+<h2>Profile & wallets</h2><div class="profile-head"><img id="avatar" alt="Profile picture" src=""/><div><b id="profileName">Guest</b><div class="muted small">This profile is saved on this device only.</div></div></div>
+<label class="label" for="avatarFile">UPLOAD PROFILE PICTURE</label><input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp"/>
+<label class="label" for="displayName">DISPLAY NAME</label><input id="displayName" maxlength="32" placeholder="Your display name"/><button class="primary" id="saveProfile">Save profile</button>
+<hr/><h2>Wallet manager</h2><div id="walletList" class="status">No wallets saved.</div><button id="addWallet" class="primary">+ Add wallet</button>
+<hr/><h2>Password & security</h2><p class="muted small">This demo has no account login or server-side password system. A password form here would give a false sense of security, so password changes are not enabled. Do not store real funds or reuse passwords.</p>
+<button id="logout">Log out of active wallet</button><div id="profileStatus" class="status">New wallet backups are encrypted on this device. Older imported wallets may still be unencrypted.</div>
+</section>
 <section id="wallet" class="panel">
-<h2>Your Bibicoin wallet</h2>
-<div id="noWallet"><p class="muted">Create a wallet on this device. Your private key is generated by the server and returned once. Save it securely; if you lose it, the wallet cannot be recovered.</p><button class="primary" id="createWallet">Create new wallet</button></div>
+<h2>Your Darkcoin wallet</h2>
+<div id="noWallet"><p class="muted">Create an educational testnet wallet on this device. The private key is returned once; this is not suitable for real funds.</p><button class="primary" id="createWallet">Create new wallet</button></div>
 <div id="walletArea" class="hidden">
 <div class="label">WALLET ADDRESS</div><div class="hash" id="address"></div>
 <div class="grid"><div><div class="label">CONFIRMED BALANCE</div><div class="metric" id="balance">0</div></div><div><div class="label">AVAILABLE BALANCE</div><div class="metric" id="available">0</div></div></div>
-<h2>Send BBC</h2>
-<label class="label" for="to">Recipient address</label><input id="to" placeholder="BBC + 40 hexadecimal characters">
-<label class="label" for="amount">Amount (BBC)</label><input id="amount" type="number" min="0.00000001" step="0.00000001" placeholder="1.25">
+<h2>Send DKC</h2>
+<label class="label" for="to">Recipient address</label><input id="to" placeholder="DKC + 40 hexadecimal characters">
+<label class="label" for="amount">Amount (DKC)</label><input id="amount" type="number" min="0.00000001" step="0.00000001" placeholder="1.25">
 <button class="primary" id="send">Sign & submit transfer</button>
 <div class="status" id="walletStatus">Transfers are confirmed after a miner includes them in a valid block.</div>
-<h2 style="margin-top:20px">Private key backup</h2><p class="muted small">Your private key stays in this browser's local storage for this demo. Do not use a reused password or real funds.</p>
+<h2 style="margin-top:20px">Private key backup</h2><p class="muted small">New wallets are encrypted in this browser with a password using PBKDF2 and AES-GCM. Keep a separate private-key backup. This is still an educational demo, not audited custody software.</p>
 <button id="showKey">Show private key</button> <button id="forgetKey">Forget this wallet on this device</button>
 <pre id="keyBox" class="status hidden" style="white-space:pre-wrap"></pre>
 <h2 style="margin-top:20px">Wallet transactions</h2><div id="walletTx" class="muted small">No transactions yet.</div>
@@ -63,11 +79,32 @@ footer{padding:20px;color:var(--muted);font-size:12px;text-align:center}
 <h2>Latest blocks</h2><button id="refresh">Refresh explorer</button><div id="blocks" class="muted small" style="margin-top:12px">Loading…</div>
 <h2 style="margin-top:22px">Recent transactions</h2><div id="transactions" class="muted small">Loading…</div>
 </section>
+<section id="trading" class="panel hidden">
+<h2>DKC/USD Paper Exchange <span class="pill">SIMULATED</span></h2>
+<p class="muted small">Practice exchange only. Prices, orders, volume and demo USD credits are simulated in this browser. DKC has no real USD price here. No deposits, withdrawals or real-money trading.</p>
+<div class="grid">
+<div class="card"><div class="label">SIMULATED DKC PRICE</div><div class="metric" id="marketPrice">$0.010000</div><div class="small" id="marketChange">Starting demo price</div></div>
+<div class="card"><div class="label">24H SIMULATED HIGH</div><div class="metric" id="marketHigh">$0.010000</div></div>
+<div class="card"><div class="label">24H SIMULATED LOW</div><div class="metric" id="marketLow">$0.010000</div></div>
+<div class="card"><div class="label">DEMO VOLUME</div><div class="metric" id="marketVolume">0 DKC</div></div>
+</div>
+<div class="status"><b>Simulated price history</b><div id="marketChart" class="chart"></div></div>
+<div class="grid">
+<div class="card"><h2>Paper order</h2><label class="label" for="paperSide">SIDE</label><select id="paperSide"><option value="buy">Buy DKC</option><option value="sell">Sell DKC</option></select>
+<label class="label" for="paperType">ORDER TYPE</label><select id="paperType"><option value="market">Market</option><option value="limit">Limit</option></select>
+<label class="label" for="paperAmount">AMOUNT (DKC)</label><input id="paperAmount" type="number" min="0.00000001" step="0.00000001" placeholder="100">
+<div id="limitPriceWrap" class="hidden"><label class="label" for="paperLimitPrice">LIMIT PRICE (USD)</label><input id="paperLimitPrice" type="number" min="0.000001" step="0.000001" placeholder="0.01"></div>
+<button class="primary" id="paperSubmit">Place demo order</button><div class="status" id="paperStatus">Start with demo credits. Orders do not affect the blockchain wallet.</div></div>
+<div class="card"><h2>Demo portfolio</h2><div class="label">DEMO USD CREDIT</div><div class="metric" id="paperUsd">$10,000.00</div><div class="label" style="margin-top:12px">DEMO DKC HOLDINGS</div><div class="metric" id="paperDkc">0 DKC</div><div class="label" style="margin-top:12px">ESTIMATED DEMO VALUE</div><div class="metric" id="paperEquity">$10,000.00</div><div class="small muted">This portfolio is separate from your blockchain wallet.</div><button id="resetPaper" style="margin-top:12px">Reset demo portfolio</button></div>
+</div>
+<div class="grid"><div class="card"><h2>Simulated order book</h2><div id="paperBook" class="small muted">Generating demo orders…</div></div><div class="card"><h2>Open limit orders</h2><div id="paperOpenOrders" class="small muted">No open orders.</div></div></div>
+<div class="card"><h2>Paper trade history</h2><div id="paperHistory" class="small muted">No demo trades yet.</div></div>
+</section>
 <section id="network" class="panel hidden">
 <h2>Network parameters</h2><div id="rules" class="muted">Loading…</div>
 <p class="status warn">This first release is a public testnet MVP backed by one hosted node. It supports online wallets, signed transfers and browser mining, but it is not yet a decentralized peer-to-peer network. The host is a central point of failure and must not be used for real money.</p>
 </section>
-<footer>Bibicoin is an educational test network. BBC has no monetary value. Never send money to use this demo.</footer>
+<footer>Darkcoin is an educational test network. DKC has no monetary value. Trading is simulated paper trading only. Never send money to use this demo.</footer>
 </main>
 <script src="/app.js" defer></script>
 </body></html>
